@@ -7,10 +7,15 @@ const agentEvents = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/features/sessions/agent-event.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText, { exports: agentEvents })
+const terminalLinks = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/terminal/terminal-link.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS },
+}).outputText, { exports: terminalLinks, URL })
 
 // Run the actual launch effect with deterministic boundary doubles.
 function harness() {
-  const slots = [], starts = [], stops = [], resizes = [], writes = [], states = [], csiHandlers = []
+  const slots = [], starts = [], stops = [], resizes = [], writes = [], states = [], csiHandlers = [], updates = []
+  let webLinkHandler
   let cursor = 0, effects = [], previous = [], resolveStart, rejectStart, terminal, onAttention, onInput, compareProps
   const noop = () => {}
   const disposable = () => ({ dispose: noop })
@@ -19,7 +24,7 @@ function harness() {
     useState: initial => {
       const index = cursor++
       if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial
-      return [slots[index], noop]
+      return [slots[index], value => updates.push(value)]
     },
     useRef: initial => {
       const index = cursor++
@@ -66,11 +71,13 @@ function harness() {
     '@xterm/xterm': { Terminal },
     '@xterm/addon-fit': { FitAddon: class { fit() {} } },
     '@xterm/addon-search': { SearchAddon: class {} },
-    '@xterm/addon-web-links': { WebLinksAddon: class {} },
+    '@xterm/addon-web-links': { WebLinksAddon: class { constructor(handler) { webLinkHandler = handler } } },
     'lucide-react': {},
     './ime-lifecycle': { attachImeLifecycle: () => noop },
     './ime-focus': { cancelTerminalFocus: noop, requestTerminalFocus: () => noop },
     './terminal-clipboard': {},
+    './TerminalLinkDialog': {},
+    './terminal-link': terminalLinks,
     './terminal-options': { createTerminalOptions: () => ({}) },
     './terminal-paste': { attachTerminalPaste: () => ({ dispose: noop }) },
     '../features/sessions/agent-event': agentEvents,
@@ -86,7 +93,9 @@ function harness() {
     ResizeObserver: class { observe() {} disconnect() {} },
   })
   return {
-    starts, stops, resizes, writes, states, csiHandlers,
+    starts, stops, resizes, writes, states, csiHandlers, updates,
+    openOscLink: (event, uri) => terminal.options.linkHandler.activate(event, uri),
+    openWebLink: (event, uri) => webLinkHandler(event, uri),
     equal: (a, b) => compareProps(a, b),
     paste: () => effects[1].run(),
     render(props) {
@@ -106,6 +115,25 @@ function harness() {
     reject: async () => { rejectStart(Error('late failure')); await Promise.resolve(); await Promise.resolve() },
   }
 }
+
+test('OSC 8 and detected web links request the same confirmation instead of opening an app popup', () => {
+  const h = harness()
+  h.render({}); const dispose = h.launch()
+  let prevented = 0
+  const event = { preventDefault: () => prevented++ }
+  h.openOscLink(event, 'https://example.com/download?version=1#asset')
+  h.openWebLink(event, 'https://example.com/download?version=1#asset')
+  assert.equal(prevented, 2)
+  assert.equal(h.updates.length, 2)
+  assert.deepEqual(h.updates[0], h.updates[1])
+  assert.equal(h.updates[0].url, 'https://example.com/download?version=1#asset')
+  assert.equal(h.updates[0].host, 'example.com')
+  for (const uri of ['javascript:alert(1)', 'file:///private.txt', 'data:text/plain,hello', 'not a URL']) {
+    h.openOscLink(event, uri)
+    assert.equal(h.updates.at(-1), null)
+  }
+  dispose()
+})
 
 test('Codex passes mouse and alternate screen modes through, preserving cursor policy and cleanup', () => {
   const h = harness()

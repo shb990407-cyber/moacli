@@ -14,6 +14,8 @@ import { beginTerminalComposition, cancelTerminalFocus, endTerminalComposition, 
 import { isTerminalPasteShortcut } from './terminal-clipboard'
 import { createTerminalOptions } from './terminal-options'
 import { attachTerminalPaste } from './terminal-paste'
+import { TerminalLinkDialog } from './TerminalLinkDialog'
+import { parseTerminalLink, type TerminalLink } from './terminal-link'
 import type { AgentAccount } from '../../electron/contracts'
 import { agentEventInteractionState, agentEventLabel, type AgentEventKind } from '../features/sessions/agent-event'
 
@@ -64,6 +66,7 @@ function TerminalPaneComponent({ active, sessionId, historyKey, agentId, cwd, ti
   const diagnosticRef = useRef<(reason: DiagnosticReason, value?: number) => void>(() => undefined)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [externalLink, setExternalLink] = useState<TerminalLink | null>(null)
   openSearchRef.current = () => {
     setSearchOpen(true)
     requestAnimationFrame(() => searchInputRef.current?.select())
@@ -108,10 +111,14 @@ function TerminalPaneComponent({ active, sessionId, historyKey, agentId, cwd, ti
     const searchAddon = new SearchAddon()
     terminal.loadAddon(searchAddon)
     searchAddonRef.current = searchAddon
-    terminal.loadAddon(new WebLinksAddon((event, uri) => {
+    const requestOpenLink = (event: MouseEvent, uri: string): void => {
       event.preventDefault()
-      window.cliAgent.openExternal(uri)
-    }))
+      setExternalLink(parseTerminalLink(uri))
+    }
+    // OSC 8 links must bypass xterm's confirm/window.open fallback: Electron
+    // denies app popups. Both link types use our dialog and external-browser IPC.
+    terminal.options.linkHandler = { activate: requestOpenLink }
+    terminal.loadAddon(new WebLinksAddon(requestOpenLink))
     terminal.open(container)
     // The built-in DOM renderer is the reliable default around Windows IME
     // composition and resize; the WebGL addon is attached by its own effect
@@ -602,6 +609,7 @@ function TerminalPaneComponent({ active, sessionId, historyKey, agentId, cwd, ti
 
   return (
     <div className="terminal-pane">
+      {externalLink && <TerminalLinkDialog link={externalLink} onOpen={window.cliAgent.openExternal} onClose={() => setExternalLink(null)} />}
       <div className="terminal-container" ref={containerRef} />
       {searchOpen && (
         <div className="terminal-search" role="search">

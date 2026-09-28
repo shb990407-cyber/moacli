@@ -1,0 +1,16 @@
+.terminal-link-dialog { width: min(520px, calc(100vw - 40px)); max-height: calc(100vh - 40px); padding: 0; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; color: var(--app-fg, #e7e9ea); background: var(--app-bg, #171a1e); box-shadow: var(--elevation-modal); }
+.terminal-link-dialog::backdrop { background: rgba(5,7,8,.65); }
+.terminal-link-content { padding: 22px; }
+.terminal-link-content header { display: flex; align-items: flex-start; gap: 12px; }
+.terminal-link-content header > div { flex: 1; min-width: 0; }
+.terminal-link-icon { display: grid; flex-shrink: 0; width: 40px; height: 40px; place-items: center; border: 1px solid color-mix(in oklch, var(--acc) 24%, transparent); border-radius: 11px; color: var(--acc); background: color-mix(in oklch, var(--acc) 9%, transparent); }
+.terminal-link-content h2 { margin: 1px 0 6px; font-size: 16px; font-weight: 650; }
+.terminal-link-content header p, .terminal-link-hint { margin: 0; color: color-mix(in oklch, var(--app-fg, #e7e9ea) 60%, transparent); font-size: 12px; line-height: 1.5; }
+.terminal-link-destination { margin: 22px 0 12px; padding: 14px; border: 1px solid rgba(255,255,255,.09); border-radius: 9px; background: rgba(0,0,0,.16); user-select: text; }
+.terminal-link-destination strong { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; font-size: 13px; }
+.terminal-link-destination strong svg { flex-shrink: 0; color: var(--acc); }
+.terminal-link-destination p { max-height: 160px; overflow-y: auto; margin: 10px 0 0; color: color-mix(in oklch, var(--app-fg, #e7e9ea) 70%, transparent); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.terminal-link-content footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.terminal-link-open { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 13px; border: 1px solid color-mix(in oklch, var(--acc) 40%, transparent); border-radius: 6px; color: var(--app-fg, #e7e9ea); background: color-mix(in oklch, var(--acc) 16%, transparent); font: inherit; font-size: 12px; cursor: pointer; }
+.terminal-link-open:hover { background: color-mix(in oklch, var(--acc) 25%, transparent); }
+.terminal-link-dialog button:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }

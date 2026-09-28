@@ -45,7 +45,6 @@ const MIN_STARTING_INDICATOR_MS = 650
 const STARTUP_FOLLOW_WINDOW_MS = 15_000
 const STARTUP_FOLLOW_EXTEND_MS = 1200
 const TERMINAL_ZOOM_KEYS = new Set(['=', '+', '-', '_', '0'])
-const CODEX_MOUSE_TRACKING_MODES = new Set([9, 1000, 1002, 1003, 1005, 1006, 1015, 1016])
 
 function TerminalPaneComponent({ active, sessionId, historyKey, agentId, cwd, title, account, purpose = 'session', resumeId, renderer, revealLatestAt, fontFamily, fontSize, background, foreground, cursorColor, activityStatusEnabled, onActivity, onStateChange, pendingPaste, onPasteConsumed }: TerminalPaneProps) {
   // Explicit restart uses terminalRevision to remount this component.
@@ -125,21 +124,15 @@ function TerminalPaneComponent({ active, sessionId, historyKey, agentId, cwd, ti
       : undefined
     const codexPrivateModeOnDisposable = agentId === 'codex'
       ? terminal.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
-          if (params.length === 1 && params[0] === 12) return true
-          // Codex enables terminal mouse reporting, which makes xterm require
-          // Shift+drag for text selection. Keep normal left-drag selection in
-          // the desktop shell by declining Codex mouse tracking modes.
-          return params.length > 0 && params.every((param) => (
-            typeof param === 'number' && CODEX_MOUSE_TRACKING_MODES.has(param)
-          ))
+          // Keep our cursor blink preference, but let Codex own mouse modes.
+          // Blocking them makes xterm turn alternate-screen wheels into arrows,
+          // cycling composer history. Shift+drag still selects terminal text.
+          return params.length === 1 && params[0] === 12
         })
       : undefined
     const codexPrivateModeOffDisposable = agentId === 'codex'
       ? terminal.parser.registerCsiHandler({ prefix: '?', final: 'l' }, (params) => {
-          if (params.length === 1 && params[0] === 12) return true
-          return params.length > 0 && params.every((param) => (
-            typeof param === 'number' && CODEX_MOUSE_TRACKING_MODES.has(param)
-          ))
+          return params.length === 1 && params[0] === 12
         })
       : undefined
 

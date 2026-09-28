@@ -10,7 +10,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/features/sessions/age
 
 // Run the actual launch effect with deterministic boundary doubles.
 function harness() {
-  const slots = [], starts = [], stops = [], resizes = [], writes = [], states = []
+  const slots = [], starts = [], stops = [], resizes = [], writes = [], states = [], csiHandlers = []
   let cursor = 0, effects = [], previous = [], resolveStart, rejectStart, terminal, onAttention, onInput, compareProps
   const noop = () => {}
   const disposable = () => ({ dispose: noop })
@@ -33,7 +33,11 @@ function harness() {
       this.options = options
       this.cols = 80
       this.rows = 24
-      this.parser = { registerCsiHandler: disposable }
+      this.parser = { registerCsiHandler: (identifier, handler) => {
+        const entry = { identifier, handler }
+        csiHandlers.push(entry)
+        return { dispose: () => csiHandlers.splice(csiHandlers.indexOf(entry), 1) }
+      } }
     }
     loadAddon() {} open() {} focus() {} dispose() {}
     onData(callback) { onInput = callback; return disposable() }
@@ -82,7 +86,7 @@ function harness() {
     ResizeObserver: class { observe() {} disconnect() {} },
   })
   return {
-    starts, stops, resizes, writes, states,
+    starts, stops, resizes, writes, states, csiHandlers,
     equal: (a, b) => compareProps(a, b),
     paste: () => effects[1].run(),
     render(props) {
@@ -102,6 +106,21 @@ function harness() {
     reject: async () => { rejectStart(Error('late failure')); await Promise.resolve(); await Promise.resolve() },
   }
 }
+
+test('Codex passes mouse and alternate screen modes through, preserving cursor policy and cleanup', () => {
+  const h = harness()
+  h.render({ agentId: 'codex' })
+  const dispose = h.launch()
+  for (const final of ['h', 'l']) {
+    const { handler } = h.csiHandlers.find(entry => entry.identifier.prefix === '?' && entry.identifier.final === final)
+    for (const params of [[9], [1000], [1002], [1003], [1005], [1006], [1015], [1016], [1049], [1000, 1006], [12, 1000], [2026]]) {
+      assert.equal(handler(params), false, `${final}: pass through ${params}`)
+    }
+    assert.equal(handler([12]), true, 'retain configured cursor blink')
+  }
+  dispose()
+  assert.equal(h.csiHandlers.length, 0)
+})
 
 test('memo observes paste requests and a ready terminal consumes each request only once', async () => {
   const h = harness()
